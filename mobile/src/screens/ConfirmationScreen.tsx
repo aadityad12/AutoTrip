@@ -6,12 +6,14 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Animated,
+  Alert,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../App';
 import { Ionicons } from '@expo/vector-icons';
 import { useTripContext } from '../context/TripContext';
+import { apiService } from '../services/api';
 
 type ConfirmationScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -26,11 +28,11 @@ type Props = {
 };
 
 const ConfirmationScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { tripData, totalCost, destination, duration, tripId } = route.params;
+  const { tripData, totalCost, destination, duration, tripId, bookingReference: routeBookingReference } = route.params;
   const { updateTripStatus } = useTripContext();
   const [scaleAnimation] = useState(new Animated.Value(0));
   const [fadeAnimation] = useState(new Animated.Value(0));
-  const [bookingReference] = useState(`TRV${Math.random().toString(36).substr(2, 9).toUpperCase()}`);
+  const [bookingReference] = useState(routeBookingReference || `TRV${Math.random().toString(36).substr(2, 9).toUpperCase()}`);
 
   useEffect(() => {
     // Update trip status to confirmed with booking reference
@@ -57,9 +59,14 @@ const ConfirmationScreen: React.FC<Props> = ({ navigation, route }) => {
     });
   };
 
-  const handleDownloadItinerary = () => {
-    // Mock download functionality
-    console.log('Downloading itinerary...');
+  const handleDownloadItinerary = async () => {
+    try {
+      const result = await apiService.downloadItinerary(tripId);
+      Alert.alert('Download Ready', `Your itinerary for ${result.destination} is ready for download.`);
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert('Download Failed', 'There was an error preparing your itinerary download.');
+    }
   };
 
   return (

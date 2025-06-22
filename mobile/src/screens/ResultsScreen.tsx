@@ -40,23 +40,25 @@ interface TripEvent {
 }
 
 const ResultsScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { tripData, totalCost, destination, duration } = route.params;
+  const { tripData, totalCost, destination, duration, tripId: routeTripId } = route.params;
   const { addTrip } = useTripContext();
   const [selectedEvent, setSelectedEvent] = useState<TripEvent | null>(null);
   const [showDetails, setShowDetails] = useState(false);
-  const [tripId, setTripId] = useState<string>('');
+  const [tripId, setTripId] = useState<string>(routeTripId || '');
 
   useEffect(() => {
-    // Add trip as draft when user sees the results
-    const newTripId = addTrip({
-      destination,
-      duration,
-      status: 'draft',
-      cost: totalCost,
-      tripData,
-    });
-    setTripId(newTripId);
-  }, []);
+    // Only add trip if tripId is not provided (backward compatibility)
+    if (!routeTripId) {
+      const newTripId = addTrip({
+        destination,
+        duration,
+        status: 'draft',
+        cost: totalCost,
+        tripData,
+      });
+      setTripId(newTripId);
+    }
+  }, [routeTripId]);
 
   const getTypeIcon = (type: string) => {
     switch (type) {

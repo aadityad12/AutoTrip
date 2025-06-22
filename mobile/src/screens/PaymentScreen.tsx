@@ -14,6 +14,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../App';
 import { Ionicons } from '@expo/vector-icons';
+import { apiService } from '../services/api';
 
 type PaymentScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -60,10 +61,35 @@ const PaymentScreen: React.FC<Props> = ({ navigation, route }) => {
 
     setIsProcessing(true);
     
-    setTimeout(() => {
+    try {
+      const paymentRequest = {
+        tripId,
+        amount: totalCost,
+        paymentMethod: selectedPayment,
+        cardDetails: selectedPayment === 'card' ? {
+          cardNumber,
+          expiryDate,
+          cvv,
+          cardName,
+        } : undefined,
+      };
+
+      const paymentResponse = await apiService.processPayment(paymentRequest);
+      
       setIsProcessing(false);
-      navigation.navigate('Confirmation', { tripData, totalCost, destination, duration, tripId });
-    }, 3000);
+      navigation.navigate('Confirmation', { 
+        tripData, 
+        totalCost, 
+        destination, 
+        duration, 
+        tripId,
+        bookingReference: paymentResponse.bookingReference
+      });
+    } catch (error) {
+      setIsProcessing(false);
+      console.error('Payment error:', error);
+      Alert.alert('Payment Failed', 'There was an error processing your payment. Please try again.');
+    }
   };
 
   const getPaymentIcon = (type: string) => {

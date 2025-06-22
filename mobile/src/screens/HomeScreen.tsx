@@ -16,6 +16,8 @@ import { RootStackParamList } from '../../App';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useTripContext } from '../context/TripContext';
+import { apiService } from '../services/api';
+import DebugInfo from '../components/DebugInfo';
 
 type HomeScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -53,9 +55,28 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         playsInSilentModeIOS: true,
       });
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+      const { recording } = await Audio.Recording.createAsync({
+        android: {
+          extension: '.m4a',
+          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+          audioEncoder: Audio.AndroidAudioEncoder.AAC,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: '.m4a',
+          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+          audioQuality: Audio.IOSAudioQuality.MAX,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        web: {
+          mimeType: 'audio/webm;codecs=opus',
+          bitsPerSecond: 128000,
+        },
+      });
       setRecording(recording);
       setIsListening(true);
     } catch (err) {
@@ -85,7 +106,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         setCurrentQuestion(currentQuestion + 1);
         setTimeout(() => startRecording(), 1000);
       } else {
-        handlePlanTrip(newResponses);
+        handlePlanTrip(newResponses, uri || undefined);
       }
       
       console.log('Recording stopped and stored at', uri);
@@ -94,81 +115,44 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  const handlePlanTrip = async (voiceResponses?: string[]) => {
+  const handlePlanTrip = async (voiceResponses?: string[], audioUri?: string) => {
     if (voiceResponses) {
       setIsLoading(true);
       
-      setTimeout(() => {
-        const mockTripData = [
-          {
-            id: 1,
-            title: 'Airport Check-in',
-            startTime: '08:00 AM',
-            endTime: '09:00 AM',
-            description: 'Check-in at the airport and security screening',
-            type: 'travel',
-            cost: 0,
-            location: 'John F. Kennedy International Airport',
-            coordinates: { lat: 40.6413, lng: -73.7781 }
-          },
-          {
-            id: 2,
-            title: 'Flight to Tokyo',
-            startTime: '10:00 AM',
-            endTime: '02:00 PM',
-            description: 'Direct flight to Tokyo, Japan',
-            type: 'travel',
-            cost: 800,
-            location: 'Tokyo Haneda Airport',
-            coordinates: { lat: 35.5494, lng: 139.7798 }
-          },
-          {
-            id: 3,
-            title: 'Hotel Check-in',
-            startTime: '03:00 PM',
-            endTime: '04:00 PM',
-            description: 'Check into Park Hyatt Tokyo and freshen up',
-            type: 'accommodation',
-            cost: 400,
-            location: 'Park Hyatt Tokyo, Shinjuku',
-            coordinates: { lat: 35.6870, lng: 139.6920 }
-          },
-          {
-            id: 4,
-            title: 'Tokyo Tower Visit',
-            startTime: '05:00 PM',
-            endTime: '07:00 PM',
-            description: 'Visit iconic Tokyo Tower and observation deck',
-            type: 'activity',
-            cost: 30,
-            location: 'Tokyo Tower, Minato',
-            coordinates: { lat: 35.6586, lng: 139.7454 }
-          },
-          {
-            id: 5,
-            title: 'Sushi Dinner',
-            startTime: '07:30 PM',
-            endTime: '09:00 PM',
-            description: 'Authentic sushi dinner at Tsukiji Fish Market',
-            type: 'dining',
-            cost: 120,
-            location: 'Tsukiji Fish Market',
-            coordinates: { lat: 35.6654, lng: 139.7707 }
-          }
-        ];
-
-        const totalCost = mockTripData.reduce((sum, item) => sum + item.cost, 0);
+      try {
+        let trip;
+        
+        if (audioUri) {
+          // React Native file handling
+          const audioFile = {
+            uri: audioUri,
+            type: 'audio/mp4',
+            name: 'voice_input.m4a',
+          } as any;
+          
+          // Call the API to create a trip
+          trip = await apiService.createTrip(audioFile);
+        } else {
+          // Fallback to mock audio file
+          const mockAudioBlob = new Blob(['mock audio data'], { type: 'audio/mp4' });
+          trip = await apiService.createTrip(mockAudioBlob);
+        }
         
         setIsLoading(false);
         setCurrentQuestion(0);
         setResponses([]);
         navigation.navigate('Results', { 
-          tripData: mockTripData, 
-          totalCost,
-          destination: voiceResponses[0],
-          duration: '5 days' // extracted from trip planning
+          tripData: trip.tripData, 
+          totalCost: trip.cost,
+          destination: trip.destination,
+          duration: trip.duration,
+          tripId: trip.id
         });
-      }, 3000);
+      } catch (error) {
+        setIsLoading(false);
+        console.error('Error creating trip:', error);
+        Alert.alert('Error', 'Failed to create trip. Please try again.');
+      }
     } else {
       startRecording();
     }
@@ -188,6 +172,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {__DEV__ && <DebugInfo />}
       <ImageBackground
         source={{
           uri: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80'

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { apiService } from '../services/api';
 
 export interface TripEvent {
   id: number;
@@ -28,6 +29,8 @@ interface TripContextType {
   addTrip: (trip: Omit<TripHistory, 'id' | 'date'>) => string;
   updateTripStatus: (tripId: string, status: 'confirmed' | 'draft', bookingReference?: string) => void;
   getTripById: (tripId: string) => TripHistory | undefined;
+  refreshTrips: () => Promise<void>;
+  isLoading: boolean;
 }
 
 const TripContext = createContext<TripContextType | undefined>(undefined);
@@ -41,62 +44,26 @@ export const useTripContext = () => {
 };
 
 export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [tripHistory, setTripHistory] = useState<TripHistory[]>([
-    {
-      id: '1',
-      destination: 'Paris, France',
-      duration: '5 days',
-      status: 'confirmed',
-      cost: 2500,
-      date: '2025-01-15',
-      bookingReference: 'TRVAB123XYZ',
-      tripData: [
-        {
-          id: 1,
-          title: 'Flight to Paris',
-          startTime: '08:00 AM',
-          endTime: '02:00 PM',
-          description: 'Direct flight to Paris Charles de Gaulle',
-          type: 'travel',
-          cost: 800,
-          location: 'Charles de Gaulle Airport',
-          coordinates: { lat: 49.0097, lng: 2.5479 }
-        },
-        {
-          id: 2,
-          title: 'Eiffel Tower Visit',
-          startTime: '10:00 AM',
-          endTime: '12:00 PM',
-          description: 'Visit the iconic Eiffel Tower',
-          type: 'activity',
-          cost: 30,
-          location: 'Eiffel Tower, Paris',
-          coordinates: { lat: 48.8584, lng: 2.2945 }
-        }
-      ]
-    },
-    {
-      id: '2',
-      destination: 'London, UK',
-      duration: '3 days',
-      status: 'draft',
-      cost: 1800,
-      date: '2025-02-10',
-      tripData: [
-        {
-          id: 1,
-          title: 'Flight to London',
-          startTime: '09:00 AM',
-          endTime: '11:00 AM',
-          description: 'Flight to London Heathrow',
-          type: 'travel',
-          cost: 600,
-          location: 'Heathrow Airport',
-          coordinates: { lat: 51.4700, lng: -0.4543 }
-        }
-      ]
+  const [tripHistory, setTripHistory] = useState<TripHistory[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Load trips from API on mount
+  useEffect(() => {
+    refreshTrips();
+  }, []);
+
+  const refreshTrips = async () => {
+    setIsLoading(true);
+    try {
+      const trips = await apiService.getTrips();
+      setTripHistory(trips);
+    } catch (error) {
+      console.error('Error fetching trips:', error);
+      // Keep empty array on error
+    } finally {
+      setIsLoading(false);
     }
-  ]);
+  };
 
   const addTrip = useCallback((trip: Omit<TripHistory, 'id' | 'date'>) => {
     const newTripId = Date.now().toString();
@@ -110,14 +77,19 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return newTripId;
   }, []);
 
-  const updateTripStatus = useCallback((tripId: string, status: 'confirmed' | 'draft', bookingReference?: string) => {
-    setTripHistory(prev => 
-      prev.map(trip => 
-        trip.id === tripId 
-          ? { ...trip, status, bookingReference: bookingReference || trip.bookingReference }
-          : trip
-      )
-    );
+  const updateTripStatus = useCallback(async (tripId: string, status: 'confirmed' | 'draft', bookingReference?: string) => {
+    try {
+      await apiService.updateTripStatus(tripId, status, bookingReference);
+      setTripHistory(prev => 
+        prev.map(trip => 
+          trip.id === tripId 
+            ? { ...trip, status, bookingReference: bookingReference || trip.bookingReference }
+            : trip
+        )
+      );
+    } catch (error) {
+      console.error('Error updating trip status:', error);
+    }
   }, []);
 
   const getTripById = useCallback((tripId: string) => {
@@ -129,6 +101,8 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
     addTrip,
     updateTripStatus,
     getTripById,
+    refreshTrips,
+    isLoading,
   };
 
   return (
