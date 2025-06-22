@@ -1,1 +1,1 @@
-# TripGenie
+# AutoTrip
